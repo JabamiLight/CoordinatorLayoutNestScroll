@@ -5,9 +5,9 @@ import android.content.res.Resources;
 import android.os.Handler;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.v4.view.ViewCompat;
-import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.OverScroller;
 import android.widget.Scroller;
 
@@ -18,7 +18,7 @@ import java.lang.ref.WeakReference;
 /**
  * Created by cyandev on 2016/11/3.
  */
-public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<RecyclerView> {
+public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<LinearLayout> {
 
     private boolean isExpanded = false;
     private boolean isScrolling = false;
@@ -27,7 +27,7 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     private Scroller scroller;
     private OverScroller overScroller;
     private Handler handler;
-    private WeakReference<RecyclerView> reChild;
+    private WeakReference<View> reTarget;
 
     public HeaderScrollingBehavior(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -41,22 +41,21 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     }
 
     @Override
-    public boolean layoutDependsOn(CoordinatorLayout parent, RecyclerView child, View dependency) {
+    public boolean layoutDependsOn(CoordinatorLayout parent, LinearLayout child, View dependency) {
         if (dependency != null && dependency.getId() == R.id.scrolling_header) {
             dependentView = new WeakReference<>(dependency);
-            reChild = new WeakReference<>(child);
             return true;
         }
         return false;
     }
 
     @Override
-    public boolean onLayoutChild(CoordinatorLayout parent, RecyclerView child, int layoutDirection) {
+    public boolean onLayoutChild(CoordinatorLayout parent, LinearLayout child, int layoutDirection) {
         return super.onLayoutChild(parent, child, layoutDirection);
     }
 
     @Override
-    public boolean onDependentViewChanged(CoordinatorLayout parent, RecyclerView child, View dependency) {
+    public boolean onDependentViewChanged(CoordinatorLayout parent, LinearLayout child, View dependency) {
         Resources resources = getDependentView().getResources();
         final float progress = 1.f -
                 Math.abs(dependency.getTranslationY() / (dependency.getHeight() - resources.getDimension(R
@@ -70,13 +69,13 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     }
 
     @Override
-    public boolean onStartNestedScroll(CoordinatorLayout coordinatorLayout, RecyclerView child, View
+    public boolean onStartNestedScroll(CoordinatorLayout coordinatorLayout, LinearLayout child, View
             directTargetChild, View target, int nestedScrollAxes) {
         return (nestedScrollAxes & ViewCompat.SCROLL_AXIS_VERTICAL) != 0;
     }
 
     @Override
-    public void onNestedScrollAccepted(CoordinatorLayout coordinatorLayout, RecyclerView child, View
+    public void onNestedScrollAccepted(CoordinatorLayout coordinatorLayout, LinearLayout child, View
             directTargetChild, View target, int nestedScrollAxes) {
         scroller.abortAnimation();
         overScroller.abortAnimation();
@@ -85,7 +84,7 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     }
 
     @Override
-    public void onNestedPreScroll(CoordinatorLayout coordinatorLayout, RecyclerView child, View target, int
+    public void onNestedPreScroll(CoordinatorLayout coordinatorLayout, LinearLayout child, View target, int
             dx, int dy, int[] consumed) {
 
         //往上滑动
@@ -120,27 +119,30 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     }
 
     @Override
-    public boolean onNestedPreFling(CoordinatorLayout coordinatorLayout, RecyclerView child, View target,
+    public boolean onNestedPreFling(CoordinatorLayout coordinatorLayout, LinearLayout child, View target,
                                     float velocityX, float velocityY) {
         overScroller.abortAnimation();
-        mLastFlingX=0;
-        mLastFlingY=0;
+        mLastFlingX = 0;
+        mLastFlingY = 0;
         overScroller.fling(0, 0, 0, (int) ((int) velocityY), Integer.MIN_VALUE, Integer.MAX_VALUE,
                 Integer.MIN_VALUE, Integer.MAX_VALUE);
         isScrolling = true;
+        if (reTarget == null || reTarget.get() != target) {
+            reTarget=new WeakReference<View>(target);
+        }
         handler.post(filingRunnable);
         return true;
     }
 
     @Override
-    public boolean onNestedFling(CoordinatorLayout coordinatorLayout, RecyclerView child, View target,
+    public boolean onNestedFling(CoordinatorLayout coordinatorLayout, LinearLayout child, View target,
                                  float velocityX, float velocityY, boolean consumed) {
         return super.onNestedFling(coordinatorLayout, child, target, velocityX, velocityY, consumed);
     }
 
 
     @Override
-    public void onStopNestedScroll(CoordinatorLayout coordinatorLayout, RecyclerView child, View target) {
+    public void onStopNestedScroll(CoordinatorLayout coordinatorLayout, LinearLayout child, View target) {
         if (!isScrolling) {
             onUserStopDragging(800);
         }
@@ -181,7 +183,7 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
     }
 
     private float getDependentViewCollapsedHeight() {
-        return getDependentView().getResources().getDimension(R.dimen.collapsed_header_height);
+        return 0;
     }
 
     private View getDependentView() {
@@ -233,7 +235,7 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
                     }
                 } else {
                     //0  dependentViewT -5   dy=-8    newT =3   防止过度滑动
-                    if (!reChild.get().canScrollVertically(-1)) {
+                    if (!reTarget.get().canScrollVertically(-1)) {
                         if (newTranslateY <= 0) {
                             dependentView.setTranslationY(newTranslateY);
                             UnconsumedY = 0;
@@ -244,9 +246,9 @@ public class HeaderScrollingBehavior extends CoordinatorLayout.Behavior<Recycler
                     }
                 }
                 if (UnconsumedY != 0) {
-                    reChild.get().scrollBy(0, UnconsumedY);
+                    reTarget.get().scrollBy(0, UnconsumedY);
                 }
-//                ViewCompat.postOnAnimation(reChild.get(), this);
+//                ViewCompat.postOnAnimation(reTarget.get(), this);
                 handler.post(this);
                 if (overScroller.isFinished() && dependentView.getTranslationY() >= minHeaderTranslate &&
                         dependentView.getTranslationY() <= 0) {
